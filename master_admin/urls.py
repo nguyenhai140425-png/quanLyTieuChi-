@@ -6,6 +6,8 @@ from rest_framework_simplejwt.views import (
 from master_admin import views
 
 urlpatterns = [
+    path('', views.admin_dashboard, name='admin_dashboard'),
+    path('dashboard/', views.user_dashboard, name='user_dashboard'),
     path('quanLySuKien/', views.quan_ly_view, name='quanLySuKien'),
     path('quanLySuKienDaDienRa/', views.quan_ly_da_dien_ra_view, name='quanLySuKienDaDienRa'),
     path('quanLySuKienPhatSinh/', views.quan_ly_su_kien_phat_sinh_view, name='quanLySuKienPhatSinh'),

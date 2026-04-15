@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}User Dashboard{% endblock %}
+
+{% block extra_css %}
+    <style>
+        .welcome-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .welcome-section h1 {
+            margin-bottom: 10px;
+            color: white;
+        }
+
+        .welcome-section p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .events-section {
+            margin-top: 30px;
+        }
+
+        .events-section h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .event-card {
+            background: #fff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 15px;
+            transition: box-shadow 0.2s;
+        }
+
+        .event-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .event-card h3 {
+            margin: 0 0 10px 0;
+            color: #000;
+        }
+
+        .event-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .info-label {
+            font-weight: 600;
+            margin-right: 5px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 50px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .tags {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .tag {
+            background: #eee;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #555;
+        }
+
+        .info-box {
+            background: #f0f3ff;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .info-box p {
+            margin: 0;
+            color: #666;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="welcome-section">
+        <h1>👋 Chào mừng, {{ user.name|default:user.email }}!</h1>
+        <p>Xem các sự kiện dự kiến sắp diễn ra trong hệ thống</p>
+    </div>
+
+    <div class="info-box">
+        <p>
+            <strong>ℹ️ Thông tin:</strong> Bạn đang xem các sự kiện dự kiến sắp diễn ra. 
+            Nếu bạn cần quyền quản lý, vui lòng liên hệ với quản trị viên.
+        </p>
+    </div>
+
+    <div class="events-section">
+        <h2>📅 Sự Kiện Sắp Diễn Ra</h2>
+
+        {% if upcoming_events %}
+            {% for event in upcoming_events %}
+                <div class="event-card">
+                    <h3>{{ event.title }}</h3>
+                    <div class="event-info">
+                        <div class="info-item">
+                            <span class="info-label">Bắt đầu:</span>
+                            <span>{{ event.fromDate|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Kết thúc:</span>
+                            <span>{{ event.toDate|date:"d/m/Y" }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Năm:</span>
+                            <span>{{ event.year }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Người:</span>
+                            <span>{{ event.totalUserAllocated }}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Số tiền:</span>
+                            <span style="font-weight: 600;">
+                                <script>document.write(Number('{{ event.totalAmount|default:"0" }}').toLocaleString('vi-VN'));</script>
+                                đ
+                            </span>
+                        </div>
+                    </div>
+                    {% if event.categories.all %}
+                        <div class="tags">
+                            {% for cat in event.categories.all %}
+                                <span class="tag">{{ cat.name }}</span>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <div class="empty-state-icon">📭</div>
+                <p>Không có sự kiện sắp diễn ra</p>
+                <p style="font-size: 12px; margin-top: 5px;">Vui lòng kiểm tra lại sau</p>
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}

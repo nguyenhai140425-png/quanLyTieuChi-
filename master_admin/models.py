@@ -4,6 +4,7 @@ from django.db import models
 
 
 class UserRole(models.IntegerChoices):
+    USER = 1
     ADMIN = 2
 
 class UserManager(BaseUserManager):

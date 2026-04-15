@@ -1,5 +1,6 @@
 from django.utils import timezone
 from datetime import datetime, date
+from functools import wraps
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -8,10 +9,22 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
-from master_admin.models import Event, Category
+from master_admin.models import Event, Category, UserRole
 
 TOTAL_AMOUNT_ALLOCATED = "Tổng số tiền được cấp trong năm"
 AMOUNT_ALLOCATED_PERSON = "Số tiền được cấp trên người"
+
+
+def admin_required(view_func):
+    """Decorator để kiểm tra user có phải admin"""
+    @wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        if request.user.is_authenticated:
+            user_role = getattr(request.user, 'role', UserRole.ADMIN)
+            if user_role == UserRole.ADMIN:
+                return view_func(request, *args, **kwargs)
+        return redirect('user_dashboard')
+    return wrapper
 
 
 def custom_login_view(request):
@@ -25,13 +38,50 @@ def custom_login_view(request):
 
         if user is not None:
             login(request, user)
-            return redirect('quanLySuKien')
+            # Redirect dựa trên role của user (user cũ được set default là ADMIN)
+            user_role = getattr(user, 'role', UserRole.ADMIN)
+            if user_role == UserRole.ADMIN:
+                return redirect('admin_dashboard')
+            else:
+                return redirect('user_dashboard')
         else:
             messages.error(request, "Invalid username or password")
 
     return render(request, 'loginAdmin.html', context={})
 
+
 @login_required(login_url='/login/')
+@admin_required
+def admin_dashboard(request):
+    """Dashboard cho admin"""
+    today = date.today()
+    total_events = Event.objects.filter(is_adhoc=False, toDate__gte=today).count()  # Sự kiện dự kiến
+    adhoc_events = Event.objects.filter(is_adhoc=True).count()  # Sự kiện phát sinh
+    completed_events = Event.objects.filter(toDate__lt=today).count()  # Sự kiện đã diễn ra
+    
+    context = {
+        'total_events': total_events,
+        'adhoc_events': adhoc_events,
+        'completed_events': completed_events,
+    }
+    return render(request, 'admin_dashboard.html', context)
+
+
+@login_required(login_url='/login/')
+def user_dashboard(request):
+    """Dashboard cho user thường"""
+    # User thường chỉ xem được các sự kiện dự kiến chưa diễn ra
+    today = date.today()
+    upcoming_events = Event.objects.filter(is_adhoc=False, toDate__gte=today).order_by('fromDate')
+    
+    context = {
+        'upcoming_events': upcoming_events,
+    }
+    return render(request, 'user_dashboard.html', context)
+
+
+@login_required(login_url='/login/')
+@admin_required
 def quan_ly_view(request):
     if request.method == 'POST':
         event_id = request.POST.get('event_id')
@@ -90,7 +140,9 @@ def quan_ly_view(request):
     selected_year = request.GET.get('year')
     available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
 
-    events = Event.objects.all().order_by('-fromDate')
+    # Chỉ hiển thị sự kiện dự kiến (chưa diễn ra)
+    today = date.today()
+    events = Event.objects.filter(is_adhoc=False, toDate__gte=today).order_by('-fromDate')
     if selected_year:
         events = events.filter(year=selected_year)
 
@@ -106,6 +158,7 @@ def quan_ly_view(request):
 
 
 @login_required(login_url='/login/')
+@admin_required
 def quan_ly_da_dien_ra_view(request):
     current_year = timezone.now().year
     today = date.today()
@@ -134,6 +187,7 @@ def quan_ly_da_dien_ra_view(request):
 
 
 @login_required(login_url='/login/')
+@admin_required
 def quan_ly_su_kien_phat_sinh_view(request):
     if request.method == 'POST':
         event_id = request.POST.get('event_id')
@@ -174,7 +228,14 @@ def quan_ly_su_kien_phat_sinh_view(request):
                 new_event.categories.set(danh_muc_ids)
                 messages.success(request, "Thêm sự kiện phát sinh mới thành công!")
 
-            return redirect('quanLySuKienPhatSinh')
+            # Kiểm tra ngày kết thúc để redirect tới trang phù hợp
+            to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
+            today = date.today()
+            
+            if to_date_obj < today:
+                return redirect('quanLySuKienDaDienRa')
+            else:
+                return redirect('quanLySuKienPhatSinh')
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin.")
 
@@ -186,8 +247,9 @@ def quan_ly_su_kien_phat_sinh_view(request):
     selected_year = request.GET.get('year')
     available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
 
-    # Lọc các sự kiện phát sinh
-    events = Event.objects.filter(is_adhoc=True).order_by('-fromDate')
+    # Lọc các sự kiện phát sinh chưa diễn ra
+    today = date.today()
+    events = Event.objects.filter(is_adhoc=True, toDate__gte=today).order_by('-fromDate')
     if selected_year:
         events = events.filter(year=selected_year)
 
@@ -227,6 +289,7 @@ def get_categories_by_year(request):
 
 
 @login_required(login_url='/login/')
+@admin_required
 def xoa_su_kien_view(request, event_id):
     event = get_object_or_404(Event, id=event_id)
     event.delete()
@@ -235,6 +298,7 @@ def xoa_su_kien_view(request, event_id):
 
 
 @login_required(login_url='/login/')
+@admin_required
 def quan_ly_danh_muc_view(request):
     if request.method == 'POST':
         cat_id = request.POST.get('id')
@@ -290,6 +354,7 @@ def quan_ly_danh_muc_view(request):
 
 
 @login_required(login_url='/login/')
+@admin_required
 def xoa_tieu_chi(request, id):
     category = get_object_or_404(Category, id=id)
     category.delete()
