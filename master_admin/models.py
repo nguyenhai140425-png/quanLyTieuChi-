@@ -61,4 +61,5 @@ class Event(models.Model):
     fromDate = models.DateField()
     toDate = models.DateField()
     year = models.IntegerField(default=datetime.date.today().year)
+    is_adhoc = models.BooleanField(default=False)
     categories = models.ManyToManyField(Category)

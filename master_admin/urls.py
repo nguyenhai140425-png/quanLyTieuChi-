@@ -7,6 +7,8 @@ from master_admin import views
 
 urlpatterns = [
     path('quanLySuKien/', views.quan_ly_view, name='quanLySuKien'),
+    path('quanLySuKienDaDienRa/', views.quan_ly_da_dien_ra_view, name='quanLySuKienDaDienRa'),
+    path('quanLySuKienPhatSinh/', views.quan_ly_su_kien_phat_sinh_view, name='quanLySuKienPhatSinh'),
     path('xoaSuKien/<int:event_id>/', views.xoa_su_kien_view, name='xoaSuKien'),
     path('quanLyDanhMuc/', views.quan_ly_danh_muc_view, name='quanLyDanhMuc'),
     path('xoaTieuChi/<int:id>/', views.xoa_tieu_chi, name='xoaTieuChi'),

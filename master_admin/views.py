@@ -1,4 +1,5 @@
 from django.utils import timezone
+from datetime import datetime, date
 
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -53,6 +54,7 @@ def quan_ly_view(request):
                 event.year = year
                 event.totalAmount = cleanAmount
                 event.totalUserAllocated = totalUserAllocated
+                event.is_adhoc = False
                 event.save()
                 event.categories.set(danh_muc_ids)
                 messages.success(request, "Cập nhật sự kiện thành công!")
@@ -64,11 +66,19 @@ def quan_ly_view(request):
                     totalUserAllocated=totalUserAllocated,
                     totalAmount=cleanAmount,
                     year=year,
+                    is_adhoc=False,
                 )
                 new_event.categories.set(danh_muc_ids)
                 messages.success(request, "Thêm sự kiện mới thành công!")
 
-            return redirect('quanLySuKien')
+            # Kiểm tra ngày kết thúc để redirect tới trang phù hợp
+            to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
+            today = date.today()
+            
+            if to_date_obj < today:
+                return redirect('quanLySuKienDaDienRa')
+            else:
+                return redirect('quanLySuKien')
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin.")
 
@@ -93,6 +103,103 @@ def quan_ly_view(request):
         'selected_year': selected_year,
     }
     return render(request, 'quanLySuKien.html', context)
+
+
+@login_required(login_url='/login/')
+def quan_ly_da_dien_ra_view(request):
+    current_year = timezone.now().year
+    today = date.today()
+    
+    all_categories = Category.objects.all().exclude(Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
+    per_user_amount = Category.objects.filter(name=AMOUNT_ALLOCATED_PERSON, year=str(current_year)).first().amount
+    total_amount = Category.objects.filter(name=TOTAL_AMOUNT_ALLOCATED, year=str(current_year)).first().amount
+
+    selected_year = request.GET.get('year')
+    available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
+
+    # Lọc các sự kiện đã diễn ra (toDate < hôm nay)
+    events = Event.objects.filter(toDate__lt=today).order_by('-toDate')
+    if selected_year:
+        events = events.filter(year=selected_year)
+
+    context = {
+        'all_categories': all_categories,
+        'events': events,
+        'per_user_amount': per_user_amount,
+        'totalAmountYear': total_amount,
+        'available_years': available_years,
+        'selected_year': selected_year,
+    }
+    return render(request, 'quanLySuKienDaDienRa.html', context)
+
+
+@login_required(login_url='/login/')
+def quan_ly_su_kien_phat_sinh_view(request):
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        is_adhoc = request.POST.get('is_adhoc', '0')
+
+        title = request.POST.get('title')
+        fromDate = request.POST.get('fromDate')
+        toDate = request.POST.get('toDate')
+        year = request.POST.get('year')
+        totalUserAllocated = request.POST.get('totalUserAllocated')
+        totalAmount = request.POST.get('totalAmount', '0')
+        cleanAmount = totalAmount.replace('.', '').strip()
+        danh_muc_ids = request.POST.getlist('danh_muc')
+
+        if title and fromDate and toDate:
+            if event_id:
+                event = get_object_or_404(Event, id=event_id)
+                event.title = title
+                event.fromDate = fromDate
+                event.toDate = toDate
+                event.year = year
+                event.totalAmount = cleanAmount
+                event.totalUserAllocated = totalUserAllocated
+                event.is_adhoc = True if is_adhoc == '1' else False
+                event.save()
+                event.categories.set(danh_muc_ids)
+                messages.success(request, "Cập nhật sự kiện phát sinh thành công!")
+            else:
+                new_event = Event.objects.create(
+                    title=title,
+                    fromDate=fromDate,
+                    toDate=toDate,
+                    totalUserAllocated=totalUserAllocated,
+                    totalAmount=cleanAmount,
+                    year=year,
+                    is_adhoc=True,
+                )
+                new_event.categories.set(danh_muc_ids)
+                messages.success(request, "Thêm sự kiện phát sinh mới thành công!")
+
+            return redirect('quanLySuKienPhatSinh')
+        else:
+            messages.error(request, "Vui lòng điền đầy đủ thông tin.")
+
+    current_year = timezone.now().year
+    all_categories = Category.objects.all().exclude(Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
+    per_user_amount = Category.objects.filter(name=AMOUNT_ALLOCATED_PERSON, year=str(current_year)).first().amount
+    total_amount = Category.objects.filter(name=TOTAL_AMOUNT_ALLOCATED, year=str(current_year)).first().amount
+
+    selected_year = request.GET.get('year')
+    available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
+
+    # Lọc các sự kiện phát sinh
+    events = Event.objects.filter(is_adhoc=True).order_by('-fromDate')
+    if selected_year:
+        events = events.filter(year=selected_year)
+
+    context = {
+        'all_categories': all_categories,
+        'events': events,
+        'per_user_amount': per_user_amount,
+        'totalAmountYear': total_amount,
+        'available_years': available_years,
+        'selected_year': selected_year,
+    }
+    return render(request, 'quanLySuKienPhatSinh.html', context)
 
 
 def get_categories_by_year(request):

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Quản lý các sự kiện dự kiến{% endblock %}
+{% block title %}Quản lý sự kiện phát sinh{% endblock %}
 
 {% block extra_css %}
     <style>
@@ -177,7 +177,7 @@
 
 {% block content %}
     <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; width: 100%;">
-        <h1>Quản lý các sự kiện dự kiến</h1>
+        <h1>Quản lý sự kiện phát sinh</h1>
         <button class="btn btn-add" onclick="openAddModal()">+ Thêm mới</button>
     </header>
 
@@ -248,12 +248,13 @@
 
     <div class="modal-overlay" id="modalEvent">
         <div class="modal-content">
-            <h3 id="modalTitle" style="margin-bottom: 20px;">Thêm sự kiện</h3>
-            <form action="{% url 'quanLySuKien' %}" method="POST" id="mainForm">
+            <h3 id="modalTitle" style="margin-bottom: 20px;">Thêm sự kiện phát sinh</h3>
+            <form action="{% url 'quanLySuKienPhatSinh' %}" method="POST" id="mainForm">
                 {% csrf_token %}
                 <input type="hidden" id="hidden_per_user_amount" value="{{ per_user_amount|default:0 }}">
                 <input type="hidden" id="hidden_total_year_budget" value="{{ totalAmountYear|default:0 }}">
                 <input type="hidden" name="event_id" id="edit_id">
+                <input type="hidden" name="is_adhoc" value="1">
 
                 <div class="form-group">
                     <label>Tên sự kiện</label>
@@ -320,7 +321,7 @@
         document.getElementById('display_budget_year').innerText = budgetYear.toLocaleString('vi-VN');
 
         function openAddModal() {
-            document.getElementById('modalTitle').innerText = "Thêm sự kiện";
+            document.getElementById('modalTitle').innerText = "Thêm sự kiện phát sinh";
             document.getElementById('edit_id').value = "";
             document.getElementById('mainForm').reset();
             document.getElementById('btnDelete').style.display = 'none';
@@ -333,7 +334,7 @@
         }
 
         function openEditModal(id, title, fromDate, toDate, categoryIds, users, amount, year) {
-            document.getElementById('modalTitle').innerText = "Sửa sự kiện";
+            document.getElementById('modalTitle').innerText = "Sửa sự kiện phát sinh";
             document.getElementById('edit_id').value = id;
             document.getElementById('edit_title').value = title;
             document.getElementById('edit_year').value = year;
