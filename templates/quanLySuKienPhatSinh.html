@@ -96,6 +96,24 @@
             color: #555;
         }
 
+        .status-approved {
+            background: #d4edda;
+            color: #155724;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -204,6 +222,7 @@
                 <th>Ngày kết thúc</th>
                 <th>Tiêu Chí</th>
                 <th>Năm</th>
+                <th>Trạng thái</th>
                 <th style="text-align: right;">Người</th>
                 <th style="text-align: right;">Số tiền</th>
             </tr>
@@ -222,6 +241,15 @@
                         {% endfor %}
                     </td>
                     <td><strong>{{ item.year }}</strong></td>
+                    <td>
+                        {% if item.approval_status == 2 %}
+                            <span class="status-approved">✓ Đã duyệt</span>
+                        {% elif item.approval_status == 1 %}
+                            <span class="status-pending">⏳ Chờ duyệt</span>
+                        {% else %}
+                            <span class="status-rejected">✗ Không duyệt</span>
+                        {% endif %}
+                    </td>
                     <td style="text-align: right;">{{ item.totalUserAllocated|default:"0" }}</td>
                     <td style="text-align: right; font-weight: bold;">
                         <script>document.write(Number('{{ item.totalAmount|default:"0" }}').toLocaleString('vi-VN'));</script>

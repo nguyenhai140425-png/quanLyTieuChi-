@@ -57,6 +57,11 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
+class EventApprovalStatus(models.IntegerChoices):
+    PENDING = 1, 'Chờ duyệt'
+    APPROVED = 2, 'Đã duyệt'
+    REJECTED = 3, 'Không duyệt'
+
 class Event(models.Model):
     title = models.CharField(max_length=200)
     totalUserAllocated = models.IntegerField(default=0)
@@ -65,5 +70,7 @@ class Event(models.Model):
     toDate = models.DateField()
     year = models.IntegerField(default=datetime.date.today().year)
     is_adhoc = models.BooleanField(default=False)
-    is_reviewed = models.BooleanField(default=True)
+    approval_status = models.PositiveSmallIntegerField(
+        choices=EventApprovalStatus.choices, default=EventApprovalStatus.APPROVED
+    )
     categories = models.ManyToManyField(Category)

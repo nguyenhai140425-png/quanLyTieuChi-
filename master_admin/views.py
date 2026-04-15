@@ -9,7 +9,7 @@ from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
-from master_admin.models import Event, Category, UserRole, User
+from master_admin.models import Event, Category, UserRole, User, EventApprovalStatus
 
 TOTAL_AMOUNT_ALLOCATED = "Tổng số tiền được cấp trong năm"
 AMOUNT_ALLOCATED_PERSON = "Số tiền được cấp trên người"
@@ -254,7 +254,7 @@ def quan_ly_su_kien_phat_sinh_view(request):
                     totalAmount=cleanAmount,
                     year=year,
                     is_adhoc=True,
-                    is_reviewed=False,
+                    approval_status=EventApprovalStatus.PENDING,
                 )
                 new_event.categories.set(danh_muc_ids)
                 messages.success(request, "Thêm sự kiện phát sinh mới thành công! Sự kiện sẽ chờ duyệt.")
@@ -266,7 +266,7 @@ def quan_ly_su_kien_phat_sinh_view(request):
             if to_date_obj < today:
                 return redirect('quanLySuKienDaDienRa')
             else:
-                return redirect('duyetSuKien')
+                return redirect('quanLySuKienPhatSinh')
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin.")
 
@@ -278,9 +278,9 @@ def quan_ly_su_kien_phat_sinh_view(request):
     selected_year = request.GET.get('year')
     available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
 
-    # Lọc các sự kiện phát sinh đã được duyệt và chưa diễn ra
+    # Lọc các sự kiện phát sinh (hiển thị cả đã duyệt và chưa duyệt)
     today = date.today()
-    events = Event.objects.filter(is_adhoc=True, is_reviewed=True, toDate__gte=today).order_by('-fromDate')
+    events = Event.objects.filter(is_adhoc=True, toDate__gte=today).order_by('-fromDate')
     if selected_year:
         events = events.filter(year=selected_year)
 
@@ -307,7 +307,7 @@ def duyet_su_kien_view(request):
     available_years = Event.objects.values_list('year', flat=True).distinct().order_by('-year')
 
     today = date.today()
-    events = Event.objects.filter(is_adhoc=True, is_reviewed=False, toDate__gte=today).order_by('-fromDate')
+    events = Event.objects.filter(is_adhoc=True, approval_status=EventApprovalStatus.PENDING, toDate__gte=today).order_by('-fromDate')
     if selected_year:
         events = events.filter(year=selected_year)
 
@@ -326,21 +326,22 @@ def duyet_su_kien_view(request):
 @admin_required
 def phe_duyet_su_kien_view(request, event_id):
     if request.method == 'POST':
-        event = get_object_or_404(Event, id=event_id, is_adhoc=True, is_reviewed=False)
-        event.is_reviewed = True
+        event = get_object_or_404(Event, id=event_id, is_adhoc=True, approval_status=EventApprovalStatus.PENDING)
+        event.approval_status = EventApprovalStatus.APPROVED
         event.save()
         messages.success(request, 'Sự kiện đã được duyệt thành công!')
-    return redirect('duyetSuKien')
+    return redirect('quanLySuKienPhatSinh')
 
 
 @login_required(login_url='/login/')
 @admin_required
 def khong_duyet_su_kien_view(request, event_id):
     if request.method == 'POST':
-        event = get_object_or_404(Event, id=event_id, is_adhoc=True, is_reviewed=False)
-        event.delete()  # Xóa sự kiện thay vì reject
-        messages.warning(request, 'Sự kiện đã bị từ chối và xóa khỏi hệ thống!')
-    return redirect('duyetSuKien')
+        event = get_object_or_404(Event, id=event_id, is_adhoc=True, approval_status=EventApprovalStatus.PENDING)
+        event.approval_status = EventApprovalStatus.REJECTED
+        event.save()
+        messages.warning(request, 'Sự kiện đã bị từ chối!')
+    return redirect('quanLySuKienPhatSinh')
 
 
 def get_categories_by_year(request):
