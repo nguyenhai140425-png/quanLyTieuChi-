@@ -5,7 +5,7 @@ from master_admin.models import EventCategory
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import Q, Count
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.shortcuts import get_object_or_404
@@ -217,36 +217,73 @@ def quan_ly_view(request):
             if is_child_mode:
                 parent_event = get_object_or_404(Event, id=parent_event_id)
 
-                event = Event.objects.create(
-                    title=title,
-                    fromDate=fromDate,
-                    toDate=toDate,
-                    year=parent_event.year,
-                    totalUserAllocated=parent_event.totalUserAllocated,
-                    totalAmount=parent_event.totalAmount,
-                    is_adhoc=parent_event.is_adhoc,
-                    parent_event=parent_event,
-                    approval_status=parent_event.approval_status,
-                )
+                from_date_obj = datetime.strptime(fromDate, '%Y-%m-%d').date()
+                to_date_obj = datetime.strptime(toDate, '%Y-%m-%d').date()
 
-                # Inherit categories from parent event
-                parent_categories = EventCategory.objects.filter(event=parent_event)
-                for parent_category in parent_categories:
-                    EventCategory.objects.create(
-                        event=event,
-                        category=parent_category.category,
-                        quantity=parent_category.quantity,
-                    )
+                if from_date_obj > to_date_obj:
+                    messages.error(request, "Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.")
+                    return redirect('quanLySuKien')
 
-                messages.success(request, "Lưu sự kiện con thành công!")
-            else:
+                if from_date_obj < parent_event.fromDate or to_date_obj > parent_event.toDate:
+                    messages.error(request, "Thời gian sự kiện con phải nằm trong khoảng thời gian của kế hoạch cha.")
+                    return redirect('quanLySuKien')
+
+                # Nếu là edit sự kiện con
                 if event_id:
                     event = get_object_or_404(Event, id=event_id)
                     event.title = title
                     event.fromDate = fromDate
                     event.toDate = toDate
+                    event.save()
+                    messages.success(request, "Cập nhật sự kiện con thành công!")
+                else:
+                    # Nếu là tạo mới sự kiện con
+                    existing_children = parent_event.child_events.count()
+                    if existing_children >= parent_event.so_luong_su_kien_con:
+                        messages.error(request, "Số lượng sự kiện con đã đạt giới hạn của kế hoạch.")
+                        return redirect('quanLySuKien')
+
+                    event = Event.objects.create(
+                        title=title,
+                        fromDate=fromDate,
+                        toDate=toDate,
+                        year=parent_event.year,
+                        totalUserAllocated=parent_event.totalUserAllocated,
+                        totalAmount=parent_event.totalAmount,
+                        is_adhoc=parent_event.is_adhoc,
+                        parent_event=parent_event,
+                        approval_status=parent_event.approval_status,
+                    )
+
+                    # Inherit categories from parent event
+                    parent_categories = EventCategory.objects.filter(event=parent_event)
+                    for parent_category in parent_categories:
+                        EventCategory.objects.create(
+                            event=event,
+                            category=parent_category.category,
+                            quantity=parent_category.quantity,
+                        )
+
+                    messages.success(request, "Lưu sự kiện con thành công!")
+            else:
+                try:
+                    child_target_count = max(0, int(request.POST.get('so_luong_su_kien_con') or 0))
+                except (TypeError, ValueError):
+                    child_target_count = 0
+
+                if event_id:
+                    event = get_object_or_404(Event, id=event_id)
+                    existing_children = event.child_events.count()
+                    if child_target_count < existing_children:
+                        messages.error(request, "Số lượng sự kiện con không thể nhỏ hơn số sự kiện đã tạo.")
+                        return redirect('quanLySuKien')
+
+                    event.title = title
+                    event.fromDate = fromDate
+                    event.toDate = toDate
                     event.year = year
                     event.totalUserAllocated = totalUserAllocated
+                    event.so_luong_su_kien_con = child_target_count
                     event.is_adhoc = False
                     # 🔥 ĐỬNG SAVE TỪ ĐÂY - LƯU SAU KHI TÍNH TOTAL
                 else:
@@ -256,12 +293,10 @@ def quan_ly_view(request):
                         toDate=toDate,
                         totalUserAllocated=totalUserAllocated,
                         year=year,
+                        so_luong_su_kien_con=child_target_count,
                         is_adhoc=False,
                         totalAmount=0,  # 🔥 SET MẶC ĐỊNH 0 TRC TÍNH TOÁN
                     )
-
-                # 🔥 IMPORT
-                from master_admin.models import EventCategory
 
                 # 🔥 XÓA DỮ LIỆU CŨ (khi edit)
                 EventCategory.objects.filter(event=event).delete()
@@ -313,15 +348,27 @@ def quan_ly_view(request):
     Q(name=AMOUNT_ALLOCATED_PERSON)
 )
     today = date.today()
-    events = Event.objects.filter(
+    # Lấy tất cả kế hoạch cha
+    parent_events = Event.objects.filter(
         is_adhoc=False,
         approval_status=EventApprovalStatus.APPROVED,
-        toDate__gte=today
-    ).order_by('-fromDate')
+        toDate__gte=today,
+        parent_event__isnull=True,
+    ).annotate(num_child_events=Count('child_events')).order_by('-fromDate')
+
+    # Xây dựng danh sách events với cha và con
+    events_with_children = []
+    for parent in parent_events:
+        events_with_children.append({
+            'event': parent,
+            'is_parent': True,
+            'children': list(parent.child_events.all().order_by('fromDate'))
+        })
 
     context = {
         'all_categories': all_categories,
-        'events': events,
+        'events': parent_events,
+        'events_with_children': events_with_children,
         'per_user_amount': _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON),
         'totalAmountYear': _get_fixed_category_amount(TOTAL_AMOUNT_ALLOCATED),
     }
@@ -333,12 +380,18 @@ def quan_ly_view(request):
 def quan_ly_da_dien_ra_view(request):
     today = date.today()
     
-    all_categories = Category.objects.all().exclude(Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
+    all_categories = Category.objects.all().exclude(
+        Q(name=TOTAL_AMOUNT_ALLOCATED) |
+        Q(name=AMOUNT_ALLOCATED_PERSON)
+    )
 
     # Lọc các sự kiện đã diễn ra (toDate < hôm nay)
-#    events = Event.objects.filter(toDate__lt=today).order_by('-toDate')
-    events = Event.objects.filter(is_adhoc=False,approval_status=EventApprovalStatus.APPROVED,
-    toDate__lt=today).order_by('-toDate')
+    events = Event.objects.filter(
+        is_adhoc=False,
+        approval_status=EventApprovalStatus.APPROVED,
+        toDate__lt=today,
+        parent_event__isnull=True,
+    ).order_by('-toDate')
     context = {
         'all_categories': all_categories,
         'events': events,
@@ -500,8 +553,14 @@ def khong_duyet_su_kien_view(request, event_id):
 
     return redirect('duyetSuKien')
 def get_categories(request):
-    categories = Category.objects.all().values('id', 'name', 'amount').exclude(
-        Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON))
+    year = request.GET.get('year')
+    categories = Category.objects.all()
+    if year:
+        categories = categories.filter(year=year)
+
+    categories = categories.exclude(
+        Q(name=TOTAL_AMOUNT_ALLOCATED) | Q(name=AMOUNT_ALLOCATED_PERSON)
+    ).values('id', 'name', 'amount')
     categories_list = list(categories)
 
     return JsonResponse({

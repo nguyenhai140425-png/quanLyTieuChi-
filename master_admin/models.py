@@ -88,15 +88,22 @@ class Event(models.Model):
     fromDate = models.DateField()
     toDate = models.DateField()
     year = models.IntegerField(default=datetime.date.today().year)
+    so_luong_su_kien_con = models.IntegerField(default=0)
+    parent_event = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='child_events'
+    )
     is_adhoc = models.BooleanField(default=False)
     approval_status = models.PositiveSmallIntegerField(
         choices=EventApprovalStatus.choices, default=EventApprovalStatus.APPROVED
     )
-#    categories = models.ManyToManyField(Category)
     categories = models.ManyToManyField(
-    Category,
-    through='EventCategory'
-)
+        Category,
+        through='EventCategory'
+    )
 class EventCategory(models.Model):
     event = models.ForeignKey('Event', on_delete=models.CASCADE)
     category = models.ForeignKey('Category', on_delete=models.CASCADE)
