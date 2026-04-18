@@ -24,6 +24,7 @@ def _get_fixed_category_amount(category_name):
 
 def admin_required(view_func):
     """Decorator để kiểm tra user có phải admin"""
+
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if request.user.is_authenticated:
@@ -31,6 +32,7 @@ def admin_required(view_func):
             if user_role == UserRole.ADMIN:
                 return view_func(request, *args, **kwargs)
         return redirect('user_dashboard')
+
     return wrapper
 
 
@@ -72,7 +74,7 @@ def quan_ly_nguoi_dung_view(request):
         username = request.POST.get('username')
         email = request.POST.get('email')
         password = request.POST.get('password')
-        
+
         if user_id:
             # Edit user
             user = get_object_or_404(User, id=user_id)
@@ -101,9 +103,9 @@ def quan_ly_nguoi_dung_view(request):
                     role=UserRole.USER
                 )
                 messages.success(request, f"Đã tạo người dùng '{username}' thành công!")
-        
+
         return redirect('quanLyNguoiDung')
-    
+
     users = User.objects.filter(role=UserRole.USER).order_by('-id')
     return render(request, 'quanLyNguoiDung.html', {'users': users})
 
@@ -129,7 +131,7 @@ def create_user(request):
         username = request.POST.get('username')
         email = request.POST.get('email')
         password = request.POST.get('password')
-        
+
         if username and email and password:
             # Kiểm tra username đã tồn tại chưa
             if User.objects.filter(username=username).exists():
@@ -147,7 +149,7 @@ def create_user(request):
                 messages.success(request, f"Đã tạo user '{username}' thành công!")
         else:
             messages.error(request, "Vui lòng điền đầy đủ thông tin!")
-    
+
     return redirect('admin_dashboard')
 
 
@@ -173,8 +175,8 @@ def user_dashboard(request):
                 totalUserAllocated=totalUserAllocated,
                 totalAmount=cleanAmount,
                 year=year,
-  
-                is_adhoc=True,   # 🔥 User tạo sẽ là sự kiện phát sinh luôn, chờ admin duyệt
+
+                is_adhoc=True,  # 🔥 User tạo sẽ là sự kiện phát sinh luôn, chờ admin duyệt
                 approval_status=EventApprovalStatus.PENDING
             )
             new_event.categories.set(danh_muc_ids)
@@ -185,17 +187,18 @@ def user_dashboard(request):
     # User thường chỉ xem được các sự kiện dự kiến chưa diễn ra
     today = date.today()
     upcoming_events = Event.objects.filter(
-    is_adhoc=False,
-    toDate__gte=today,
-    approval_status=EventApprovalStatus.APPROVED   # 👈 FIX QUAN TRỌNG
-).order_by('fromDate')
+        is_adhoc=False,
+        toDate__gte=today,
+        approval_status=EventApprovalStatus.APPROVED  # 👈 FIX QUAN TRỌNG
+    ).order_by('fromDate')
     categories = Category.objects.all()
-    
+
     context = {
         'upcoming_events': upcoming_events,
         'categories': categories,
     }
     return render(request, 'user_dashboard.html', context)
+
 
 @login_required(login_url='/login/')
 @admin_required
@@ -344,9 +347,9 @@ def quan_ly_view(request):
 
     # 🔥 LẤY CATEGORY (BỎ 2 CÁI FIXED)
     all_categories = Category.objects.exclude(
-    Q(name=TOTAL_AMOUNT_ALLOCATED) |
-    Q(name=AMOUNT_ALLOCATED_PERSON)
-)
+        Q(name=TOTAL_AMOUNT_ALLOCATED) |
+        Q(name=AMOUNT_ALLOCATED_PERSON)
+    )
     today = date.today()
     # Lấy tất cả kế hoạch cha
     parent_events = Event.objects.filter(
@@ -364,6 +367,8 @@ def quan_ly_view(request):
             'is_parent': True,
             'children': list(parent.child_events.all().order_by('fromDate'))
         })
+        if parent.num_child_events >= 1:
+            parent.totalAmount = parent.totalAmount * parent.num_child_events
 
     context = {
         'all_categories': all_categories,
@@ -375,11 +380,12 @@ def quan_ly_view(request):
 
     return render(request, 'quanLySuKien.html', context)
 
+
 @login_required(login_url='/login/')
 @admin_required
 def quan_ly_da_dien_ra_view(request):
     today = date.today()
-    
+
     all_categories = Category.objects.all().exclude(
         Q(name=TOTAL_AMOUNT_ALLOCATED) |
         Q(name=AMOUNT_ALLOCATED_PERSON)
@@ -397,7 +403,6 @@ def quan_ly_da_dien_ra_view(request):
         'events': events,
     }
     return render(request, 'quanLySuKienDaDienRa.html', context)
-
 
 
 @login_required(login_url='/login/')
@@ -552,6 +557,8 @@ def khong_duyet_su_kien_view(request, event_id):
         messages.warning(request, 'Sự kiện đã bị từ chối.')
 
     return redirect('duyetSuKien')
+
+
 def get_categories(request):
     year = request.GET.get('year')
     categories = Category.objects.all()
