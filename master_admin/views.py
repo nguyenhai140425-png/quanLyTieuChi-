@@ -21,6 +21,11 @@ def _get_fixed_category_amount(category_name):
         return 0
     return float(category.amount)
 
+def _get_fixed_category_amounts(category_name):
+    category = Category.objects.filter(name=category_name).only('amount').first()
+    if not category or category.amount is None:
+        return 0
+    return float(category.amount/10)
 
 def admin_required(view_func):
     """Decorator để kiểm tra user có phải admin"""
@@ -494,7 +499,7 @@ def quan_ly_su_kien_phat_sinh_view(request):
         'all_categories': all_categories,
         'events': events,
         'per_user_amount': _get_fixed_category_amount(AMOUNT_ALLOCATED_PERSON),
-        'totalAmountYear': _get_fixed_category_amount(TOTAL_AMOUNT_ALLOCATED),
+        'totalAmountYear': _get_fixed_category_amounts(TOTAL_AMOUNT_ALLOCATED),
     }
 
     return render(request, 'quanLySuKienPhatSinh.html', context)
